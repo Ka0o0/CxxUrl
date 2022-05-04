@@ -11,6 +11,7 @@ project(CxxUrl
 #*********************************************************
 
 option(ENABLE_INSTALL "Flag to indicate if the install target should be available" ON)
+option(ENABLE_EXAMPLES "Adds the example projects as build targets" ON)
 
 if(${PROJECT_IS_TOP_LEVEL})
     # This will be executed if the current project is top level
@@ -124,4 +125,8 @@ if(${ENABLE_INSTALL})
         NAMESPACE "${NAMESPACE}::"
         FILE "${TARGETS_FILE_PATH}"
     )
+endif()
+
+if(${ENABLE_EXAMPLES})
+    add_subdirectory(./examples)
 endif()
