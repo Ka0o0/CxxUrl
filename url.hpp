@@ -89,6 +89,12 @@ public:
     // Set path
     Url &path(const std::string& str);
 
+    // This appends a path segment to the underlying URL's path.
+    // The change happens in place. When appending to a path without a
+    // trailing path separator, a separator will be inserted. After
+    // that the path will be normalized.
+    Url &append_path_segment(const std::string& segment);
+
     class KeyVal {
     public:
         // Default constructor
@@ -205,4 +211,3 @@ private:
 
 
 #endif // URL_HPP
-

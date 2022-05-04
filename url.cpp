@@ -660,6 +660,16 @@ Url &Url::path(const std::string& p) {
     return *this;
 }
 
+Url &Url::append_path_segment(const std::string& segment) {
+    if(segment.size() == 0) {
+        return *this;
+    }
+    std::string sep = "";
+    if(segment.data()[0] != '/') {
+        sep = "/";
+    }
+    return path(m_path + sep + segment);
+}
 
 Url &Url::fragment(const std::string& f) {
     if (f.length()>256)
@@ -927,4 +937,3 @@ std::ostream& Url::output(std::ostream &o) const {
     o<<"}";
     return o;
 }
-
