@@ -49,6 +49,7 @@ public:
 
     // Build Url if needed and return it as string
     std::string str() const {if(!m_built) build_url(); return m_url;}
+    operator std::string() const { return str(); }
 
     // Set the Url to the given string. All fields are overwritten
     Url& str(const std::string &url_str) {m_url=url_str; m_built=m_parse=false; return *this;}
