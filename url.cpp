@@ -12,19 +12,22 @@
 
 namespace {
 
+// this table defines if a char is either reserved or not reserved
+// 0x00 means no character, 0x01 means unreserved, 0x02 means gen delimiter, 0x03 means sub delimiter, 0x04 is used for %
+// see https://datatracker.ietf.org/doc/html/rfc3986#section-2.2
 static const uint8_t tbl[256] = {
     0,0,0,0, 0,0,0,0,     // NUL SOH STX ETX  EOT ENQ ACK BEL
     0,0,0,0, 0,0,0,0,     // BS  HT  LF  VT   FF  CR  SO  SI
     0,0,0,0, 0,0,0,0,     // DLE DC1 DC2 DC3  DC4 NAK SYN ETB
     0,0,0,0, 0,0,0,0,     // CAN EM  SUB ESC  FS  GS  RS  US
-    0x00,0x01,0x00,0x00, 0x01,0x20,0x01,0x01, // SP ! " #  $ % & '
-    0x01,0x01,0x01,0x01, 0x01,0x01,0x01,0x08, //  ( ) * +  , - . /
+    0x00,0x02,0x01,0x02, 0x03,0x04,0x01,0x03, // SP ! " #  $ % & '
+    0x03,0x03,0x03,0x03, 0x03,0x01,0x01,0x02, //  ( ) * +  , - . /
     0x01,0x01,0x01,0x01, 0x01,0x01,0x01,0x01, //  0 1 2 3  4 5 6 7
-    0x01,0x01,0x04,0x01, 0x00,0x01,0x00,0x10, //  8 9 : ;  < = > ?
+    0x01,0x01,0x02,0x03, 0x00,0x03,0x00,0x02, //  8 9 : ;  < = > ?
     0x02,0x01,0x01,0x01, 0x01,0x01,0x01,0x01, //  @ A B C  D E F G
     0x01,0x01,0x01,0x01, 0x01,0x01,0x01,0x01, //  H I J K  L M N O
     0x01,0x01,0x01,0x01, 0x01,0x01,0x01,0x01, //  P Q R S  T U V W
-    0x01,0x01,0x01,0x00, 0x00,0x00,0x00,0x01, //  X Y Z [  \ ] ^ _
+    0x01,0x01,0x01,0x02, 0x00,0x02,0x00,0x01, //  X Y Z [  \ ] ^ _
     0x00,0x01,0x01,0x01, 0x01,0x01,0x01,0x01, //  ` a b c  d e f g
     0x01,0x01,0x01,0x01, 0x01,0x01,0x01,0x01, //  h i j k  l m n o
     0x01,0x01,0x01,0x01, 0x01,0x01,0x01,0x01, //  p q r s  t u v w
@@ -37,9 +40,35 @@ static const uint8_t tbl[256] = {
 
 
 inline bool is_char(char c, std::uint8_t mask) {
-    return (tbl[static_cast<unsigned char>(c)]&mask) != 0;
+    return (tbl[static_cast<unsigned char>(c)]&mask) != 0x00;
 }
 
+inline bool is_gen_delim(char c) {
+    return (tbl[static_cast<unsigned char>(c)]) == 0x02;
+}
+
+inline bool is_sub_delim(char c) {
+    return (tbl[static_cast<unsigned char>(c)]) == 0x03;
+}
+
+inline bool is_reserved(char c) {
+    return is_gen_delim(c) || is_sub_delim(c);
+}
+
+inline void pct_encode_char(std::ostream& o, char c) {
+    o<<'%'<<"0123456789ABCDEF"[((uint8_t)c)>>4]<<"0123456789ABCDEF"[((uint8_t)c)&0xF];
+}
+
+
+
+inline void pchar_encode_char(std::ostream& o, char c) {
+    // unreserved / pct-encoded / sub-delims / ":" / "@"
+    if(!is_reserved(c) || is_sub_delim(c) || c == ':' || c == '@') {
+        o << c;
+    } else {
+        pct_encode_char(o, c);
+    }
+}
 
 inline bool is_chars(const char* s, const char* e, std::uint8_t mask) {
     while(s!=e)
@@ -481,21 +510,14 @@ class encode_query_key {
         const std::string& m_s;
         std::uint8_t m_mask;
     friend std::ostream& operator<< (std::ostream& o, const encode_query_key& e) {
-        for (const char c:e.m_s)
-            if (c==' ')
-                o<<'+';
-            else if (c=='+')
-                o<<"%2B";
-            else if (c=='=')
-                o<<"%3D";
-            else if (c=='&')
-                o<<"%26";
-            else if (c==';')
-                o<<"%3B";
-            else if (is_char(c,e.m_mask))
-                o<<c;
-            else
-                o<<'%'<<"0123456789ABCDEF"[((uint8_t)c)>>4]<<"0123456789ABCDEF"[((uint8_t)c)&0xF];
+        for (const char c:e.m_s) {
+            // It is common to encode key and value more strictly than just using the pchar decision
+            if(!is_reserved(c) || c == ':' || c == '@') {
+                o << c;
+            } else {
+                pct_encode_char(o, c);
+            }
+        }
         return o;
     }
 };
@@ -508,19 +530,14 @@ class encode_query_val {
         const std::string& m_s;
         std::uint8_t m_mask;
     friend std::ostream& operator<< (std::ostream& o, const encode_query_val& e) {
-        for (const char c:e.m_s)
-            if (c==' ')
-                o<<'+';
-            else if (c=='+')
-                o<<"%2B";
-            else if (c=='&')
-                o<<"%26";
-            else if (c==';')
-                o<<"%3B";
-            else if (is_char(c,e.m_mask))
-                o<<c;
-            else
-                o<<'%'<<"0123456789ABCDEF"[((uint8_t)c)>>4]<<"0123456789ABCDEF"[((uint8_t)c)&0xF];
+        for (const char c:e.m_s) {
+            // It is common to encode key and value more strictly than just using the pchar decision
+            if(!is_reserved(c) || c == ':' || c == '@') {
+                o << c;
+            } else {
+                pct_encode_char(o, c);
+            }
+        }
         return o;
     }
 };
