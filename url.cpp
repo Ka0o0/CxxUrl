@@ -681,6 +681,7 @@ Url &Url::append_path_segment(const std::string& segment) {
     if(segment.size() == 0) {
         return *this;
     }
+    lazy_parse();
     std::string sep = "";
     if(segment.data()[0] != '/') {
         sep = "/";
